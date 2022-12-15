@@ -1,0 +1,54 @@
+version: v2beta1
+name: devspace-repro
+
+pipelines:
+  dev:
+    run: |-
+      build_images --all
+      run_dependencies --all       # 1. Deploy any projects this project needs (see "dependencies")
+      ensure_pull_secrets --all    # 2. Ensure pull secrets
+      create_deployments --all     # 3. Deploy Helm charts and manifests specfied as "deployments"
+      start_dev app                # 4. Start dev mode "app" (see "dev" section)
+
+images:
+  app:
+    image: node-app:latest
+    dockerfile: ./Dockerfile
+    context: ./
+
+deployments:
+  app:
+    helm:
+      chart:
+        name: ./chart
+      values:
+        someChartValue: ""
+
+dev:
+  postgresql:
+    labelSelector:
+      app.kubernetes.io/name: postgresql
+    ports:
+      - port: 5432
+  redis:
+    labelSelector:
+      app.kubernetes.io/name: redis
+    ports:
+      - port: 6379
+  app:
+    imageSelector: node-app:latest
+    devImage: node-app:latest
+    sync:
+      - path: .
+    ssh:
+      enabled: true
+    proxyCommands:
+      - command: devspace
+      - command: kubectl
+      - command: helm
+      - gitCredentials: true
+    ports:
+      - port: "9229"
+      - port: "3001"
+    open:
+      - url: http://localhost:3001
